@@ -28,8 +28,9 @@ class ADS1X1X(ADC, I2C):
     CONFIG_CHANNEL_MASK = 0x70
     CONFIG_GAIN_MASK    = 0x0E
     CONFIG_MODE_MASK    = 0x01
+    CONFIG_DR_MASK      = 0xE0
     
-    def __init__(self, slave, channelCount, resolution, name):
+    def __init__(self, slave, channelCount, resolution, name, datarate, mode):
         I2C.__init__(self, toint(slave))
         ADC.__init__(self, channelCount, resolution, 4.096)
         self._analogMax = 2**(resolution-1)
@@ -37,13 +38,15 @@ class ADS1X1X(ADC, I2C):
         
         config = self.readRegisters(self.CONFIG, 2)
         
-        mode = 0 # continuous
         config[0] &= ~self.CONFIG_MODE_MASK
-        config[0] |= mode
+        config[0] |= int(mode)
         
         gain = 0x1 # FS = +/- 4.096V
         config[0] &= ~self.CONFIG_GAIN_MASK
         config[0] |= gain << 1
+        
+        config[1] &= self.CONFIG_DR_MASK
+        config[1] |= int(datarate) << 5
         
         self.writeRegisters(self.CONFIG, config)
     
@@ -65,18 +68,18 @@ class ADS1X1X(ADC, I2C):
 
 
 class ADS1014(ADS1X1X):
-    def __init__(self, slave=0x48):
-        ADS1X1X.__init__(self, slave, 1, 12, "ADS1014")
+    def __init__(self, slave=0x48, datarate=4, mode=0):
+        ADS1X1X.__init__(self, slave, 1, 12, "ADS1014", datarate, mode)
 
 class ADS1015(ADS1X1X):
-    def __init__(self, slave=0x48):
-        ADS1X1X.__init__(self, slave, 4, 12, "ADS1015")
+    def __init__(self, slave=0x48, datarate=4, mode=0):
+        ADS1X1X.__init__(self, slave, 4, 12, "ADS1015", datarate, mode)
 
 class ADS1114(ADS1X1X):
-    def __init__(self, slave=0x48):
-        ADS1X1X.__init__(self, slave, 1, 16, "ADS1114")
+    def __init__(self, slave=0x48, datarate=4, mode=0):
+        ADS1X1X.__init__(self, slave, 1, 16, "ADS1114", datarate, mode)
 
 class ADS1115(ADS1X1X):
-    def __init__(self, slave=0x48):
-        ADS1X1X.__init__(self, slave, 4, 16, "ADS1115")
+    def __init__(self, slave=0x48, datarate=4, mode=0):
+        ADS1X1X.__init__(self, slave, 4, 16, "ADS1115", datarate, mode)
 
