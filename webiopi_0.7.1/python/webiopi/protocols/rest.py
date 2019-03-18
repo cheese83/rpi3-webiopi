@@ -25,8 +25,6 @@ try:
 except:
     pass
 
-MACROS = {}
-
 class RESTHandler():
     def __init__(self):
         self.device_mapping = True
@@ -139,9 +137,36 @@ class RESTHandler():
         
         return (200, response, contentType)
         
-    def do_GET(self, relativePath, compact=False):
+    def processRequest(self, method, relativePath, query, data):
+        result = None
         relativePath = self.findRoute(relativePath)
+
+        for macro in self.macros.values():
+            if macro.method == method and relativePath.startswith(macro.action):
+                kwargs = query.copy()
+                if data:
+                    kwargs.update(data if type(data) == dict else {'data': data})
+                path = relativePath.rstrip('/').split('/')[1:] #Only the parts of the path after the action.
+                if len(path) > 0:
+                    kwargs['path'] = path[0] if len(path) == 1 else path
+                result = macro(**kwargs)
+                response = ("%s" % result) if result else ""
+                result = (200, response, macro.contentType)
+                break
+
+        if result == None:
+            compact = str2bool(query['compact']) if ('compact' in query) else False
+
+            if method == "GET":
+                result = self.do_GET(relativePath, compact)
+            elif method == "POST":
+                result = self.do_POST(relativePath, data, compact)
+            else:
+                result = (405, None, None)
+
+        return result
         
+    def do_GET(self, relativePath, compact=False):
         # JSON full state
         if relativePath == "*":
             return (200, self.getJSON(compact), M_JSON)
@@ -178,38 +203,8 @@ class RESTHandler():
             return (0, None, None)
 
     def do_POST(self, relativePath, data, compact=False):
-        relativePath = self.findRoute(relativePath)
-
         if relativePath.startswith("GPIO/"):
             return self.callDeviceFunction("POST", relativePath)
-                
-        elif relativePath.startswith("macros/"):
-            paths = relativePath.split("/")
-            mname = paths[1]
-            if len(paths) > 2:
-                value = paths[2]
-            else:
-                value = ""
-
-            if mname in self.macros:
-                macro = self.macros[mname]
-
-                if ',' in value:
-                    args = value.split(',')
-                    result = macro(*args)
-                elif len(value) > 0:
-                    result = macro(value)
-                else:
-                    result = macro()
-                     
-                response = ""
-                if result:
-                    response = "%s" % result
-                return (200, response, M_PLAIN)
-                    
-            else:
-                return (404, mname + " Not Found", M_PLAIN)
-                
         elif relativePath.startswith("devices/"):
             if not self.device_mapping:
                 return (404, None, None)

@@ -18,11 +18,14 @@ import threading
 import codecs
 import mimetypes as mime
 import logging
+import json
+import cgi
+import gzip
 
 from webiopi.utils.version import VERSION_STRING, PYTHON_MAJOR
 from webiopi.utils.logger import info, exception
 from webiopi.utils.crypto import encrypt
-from webiopi.utils.types import str2bool
+from webiopi.utils.types import str2bool, M_PLAIN, M_JSON, M_URLENC, M_MULTIPART
 
 if PYTHON_MAJOR >= 3:
     import http.server as BaseHTTPServer
@@ -139,7 +142,7 @@ class HTTPHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     def logRequest(self, code):
         self.logger.debug('"%s %s %s" - %s %s (Client: %s)' % (self.command, self.path, self.request_version, code, self.responses[code][0], self.client_address[0] ))
     
-    def sendResponse(self, code, body=None, contentType="text/plain"):
+    def sendResponse(self, code, body=None, contentType=M_PLAIN):
         if code >= 400:
             if body != None:
                 self.send_error(code, body)
@@ -150,10 +153,15 @@ class HTTPHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache")
             if body != None:
                 encodedBody = body.encode();
+                if contentType in [M_PLAIN, M_JSON]:
+                    content = gzip.compress(encodedBody)
+                    self.send_header("Content-Encoding", "gzip")
+                else:
+                    content = encodedBody
                 self.send_header("Content-Type", contentType);
-                self.send_header("Content-Length", len(encodedBody));
+                self.send_header("Content-Length", len(content));
                 self.end_headers();
-                self.wfile.write(encodedBody)
+                self.wfile.write(content)
         self.logRequest(code)
 
     def findFile(self, filepath):
@@ -231,23 +239,29 @@ class HTTPHandler(BaseHTTPServer.BaseHTTPRequestHandler):
                 else:
                     params[s] = None
         
-        compact = False
-        if 'compact' in params:
-            compact = str2bool(params['compact'])
-
         try:
+            data = None
+            if 'content-type' in self.headers:
+                ctype, pdict = cgi.parse_header(self.headers.get('content-type'))
+                if ctype == M_MULTIPART:
+                    data = cgi.parse_(self.rfile, pdict)
+                else:
+                    length = int(self.headers.get('content-length'))
+                    if length > 0:
+                        charset = self.headers.get_content_charset()
+                        qs = self.rfile.read(length).decode(charset)
+                        if ctype == M_JSON:
+                            data = json.loads(qs)
+                        elif ctype == M_URLENC:
+                            data = cgi.parse_qs(qs, keep_blank_values=True)
+                        elif ctype == M_PLAIN:
+                            data = qs
+                        else:
+                            self.sendResponse(415)
+                            return
+
             result = (None, None, None)
-            if self.command == "GET":
-                result = self.server.handler.do_GET(relativePath, compact)
-            elif self.command == "POST":
-                length = 0
-                length_header = 'content-length'
-                if length_header in self.headers:
-                    length = int(self.headers[length_header])
-                result = self.server.handler.do_POST(relativePath, self.rfile.read(length), compact)
-            else:
-                result = (405, None, None)
-                
+            result = self.server.handler.processRequest(self.command, relativePath, params, data)
             (code, body, contentType) = result
             
             if code > 0:
@@ -270,4 +284,10 @@ class HTTPHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         self.processRequest()
 
     def do_POST(self):
+        self.processRequest()
+
+    def do_PUT(self):
+        self.processRequest()
+
+    def do_DELETE(self):
         self.processRequest()

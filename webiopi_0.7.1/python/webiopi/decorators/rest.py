@@ -1,3 +1,5 @@
+from webiopi.utils.types import M_PLAIN
+
 def request(method="GET", path="", data=None):
     def wrapper(func):
         func.routed = True
@@ -7,13 +9,18 @@ def request(method="GET", path="", data=None):
         return func
     return wrapper
 
-def response(fmt="%s", contentType="text/plain"):
+def response(fmt="%s", contentType=M_PLAIN):
     def wrapper(func):
         func.format = fmt
         func.contentType = contentType
         return func
     return wrapper
 
-def macro(func):
-    func.macro = True
-    return func
+def macro(method="POST", action ="", contentType=M_PLAIN):
+    def wrapper(func):
+        func.macro = True
+        func.method = method
+        func.action = action or func.__name__
+        func.contentType = contentType
+        return func
+    return wrapper

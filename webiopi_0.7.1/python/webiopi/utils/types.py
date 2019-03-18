@@ -3,6 +3,8 @@ from webiopi.utils import logger
 
 M_PLAIN = "text/plain"
 M_JSON  = "application/json"
+M_URLENC = "application/x-www-form-urlencoded"
+M_MULTIPART = "multipart/form-data"
 
 def jsonDumps(obj):
     if logger.debugEnabled():
