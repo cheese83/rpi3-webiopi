@@ -17,7 +17,6 @@ from webiopi.utils.types import toint, signInteger
 from webiopi.devices.i2c import I2C
 from webiopi.devices.analog import ADC
 
-
 class ADS1X1X(ADC, I2C):
     VALUE     = 0x00
     CONFIG    = 0x01
@@ -61,11 +60,18 @@ class ADS1X1X(ADC, I2C):
         else:
             config[0] |= (channel + 4) << 4
         self.writeRegisters(self.CONFIG, config)
-        sleep(0.001)
+        self.__waitForConversion__()
         d = self.readRegisters(self.VALUE, 2)
         value = (d[0] << 8 | d[1]) >> (16-self._analogResolution)
         return signInteger(value, self._analogResolution)
 
+    # If you try reading before the conversion is finished, the result will be incorrect.
+    def __waitForConversion__(self):
+        for i in range(1, 10):
+            if self.readRegisters(self.CONFIG, 1)[0] & self.CONFIG_STATUS_MASK > 0:
+                return
+            sleep(0.001)
+        raise Exception("Timed out waiting for conversion to finish %s" % self.name)
 
 class ADS1014(ADS1X1X):
     def __init__(self, slave=0x48, datarate=4, mode=0):
