@@ -29,9 +29,11 @@ class ADS1X1X(ADC, I2C):
     CONFIG_MODE_MASK    = 0x01
     CONFIG_DR_MASK      = 0xE0
     
-    def __init__(self, slave, channelCount, resolution, name, datarate, mode):
+    FULL_SCALE_RANGE = [6.144, 4.096, 2.048, 1.024, 0.512, 0.256, 0.256, 0.256]
+    
+    def __init__(self, slave, channelCount, resolution, name, datarate, mode, gain):
         I2C.__init__(self, toint(slave))
-        ADC.__init__(self, channelCount, resolution, 4.096)
+        ADC.__init__(self, channelCount, resolution, self.FULL_SCALE_RANGE[toint(gain)])
         self._analogMax = 2**(resolution-1)
         self.name = name
         
@@ -40,9 +42,8 @@ class ADS1X1X(ADC, I2C):
         config[0] &= ~self.CONFIG_MODE_MASK
         config[0] |= int(mode)
         
-        gain = 0x1 # FS = +/- 4.096V
         config[0] &= ~self.CONFIG_GAIN_MASK
-        config[0] |= gain << 1
+        config[0] |= toint(gain) << 1
         
         config[1] &= self.CONFIG_DR_MASK
         config[1] |= int(datarate) << 5
@@ -74,18 +75,18 @@ class ADS1X1X(ADC, I2C):
         raise Exception("Timed out waiting for conversion to finish %s" % self.name)
 
 class ADS1014(ADS1X1X):
-    def __init__(self, slave=0x48, datarate=4, mode=0):
-        ADS1X1X.__init__(self, slave, 1, 12, "ADS1014", datarate, mode)
+    def __init__(self, slave=0x48, datarate=4, mode=0, gain=0x1):
+        ADS1X1X.__init__(self, slave, 1, 12, "ADS1014", datarate, mode, gain)
 
 class ADS1015(ADS1X1X):
-    def __init__(self, slave=0x48, datarate=4, mode=0):
-        ADS1X1X.__init__(self, slave, 4, 12, "ADS1015", datarate, mode)
+    def __init__(self, slave=0x48, datarate=4, mode=0, gain=0x1):
+        ADS1X1X.__init__(self, slave, 4, 12, "ADS1015", datarate, mode, gain)
 
 class ADS1114(ADS1X1X):
-    def __init__(self, slave=0x48, datarate=4, mode=0):
-        ADS1X1X.__init__(self, slave, 1, 16, "ADS1114", datarate, mode)
+    def __init__(self, slave=0x48, datarate=4, mode=0, gain=0x1):
+        ADS1X1X.__init__(self, slave, 1, 16, "ADS1114", datarate, mode, gain)
 
 class ADS1115(ADS1X1X):
-    def __init__(self, slave=0x48, datarate=4, mode=0):
-        ADS1X1X.__init__(self, slave, 4, 16, "ADS1115", datarate, mode)
+    def __init__(self, slave=0x48, datarate=4, mode=0, gain=0x1):
+        ADS1X1X.__init__(self, slave, 4, 16, "ADS1115", datarate, mode, gain)
 
